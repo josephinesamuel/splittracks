@@ -1,9 +1,9 @@
 import { Category, ALL_CATEGORIES } from '../types'
-import env from "react-dotenv";
+// import env from "react-dotenv";
 
 const ANTHROPIC_API_URL = 'https://api.anthropic.com/v1/messages'
-const API_KEY = import.meta.env.VITE_ANTHROPIC_API_KEY || env.VITE_SHEETS_API_KEY
-
+// const API_KEY = import.meta.env.VITE_ANTHROPIC_API_KEY || env.VITE_SHEETS_API_KEY
+const API_KEY = import.meta.env.VITE_ANTHROPIC_API_KEY
 export interface ScannedTransaction {
   description: string
   amount: number
