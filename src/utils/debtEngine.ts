@@ -1,37 +1,18 @@
 import { Transaction, DebtSummary, MonthlyBreakdown, FIXED_CATEGORIES } from '../types'
 
 /**
- * DEBT ENGINE — mirrors Excel "Tabel hutang" formula exactly.
+ * DEBT ENGINE — simplified, starts fresh from current month.
  *
- * Excel formula (Dashboard rows 17-22):
- *   exp_k   = SUMIFS(expense_kevin, type, "<>Bayar hutang")  [from debt start date]
- *   exp_j   = SUMIFS(expense_jo, type, "<>Bayar hutang")
- *   paid_k  = SUMIFS(amount, paid_by="Kevin", type="Expense")
- *   paid_j  = SUMIFS(amount, paid_by="Josephine", type="Expense")
- *   bh_k    = SUMIFS(amount, paid_by="Kevin", type="Bayar hutang")
- *   bh_j    = SUMIFS(amount, paid_by="Josephine", type="Bayar hutang")
+ * Logic:
+ * - Only counts Expense transactions
+ * - No carried-over debt from previous months
+ * - net = (paid_kevin - expense_kevin) - (paid_josephine - expense_josephine)
+ * - net > 0  → Josephine owes Kevin
+ * - net < 0  → Kevin owes Josephine
  *
- *   sisa_kevin = MAX(0, exp_k - paid_k + hutang_lama_k - bh_k + bh_j)
- *   sisa_jo    = MAX(0, exp_j - paid_j - hutang_lama_k - bh_j + bh_k)
- *   net = sisa_jo - sisa_kevin
- *     positive → Josephine owes Kevin
- *     negative → Kevin owes Josephine
- *
- * DEBT_START_DATE: Excel starts from 18 Nov 2025 (row 82 of Transactions sheet).
- * All transactions before this are considered settled history.
- * HUTANG_LAMA_KEVIN = €120 carried-over from before the start date (hardcoded in Excel).
+ * Bayar hutang rows: counted separately — they reduce the net debt directly.
  */
-
-const DEBT_START_DATE = '2025-11-18'
-const HUTANG_LAMA_KEVIN = 120.0
-
-function isInDebtPeriod(tx: Transaction): boolean {
-  return tx.date >= DEBT_START_DATE
-}
-
 export function calculateDebt(transactions: Transaction[]): DebtSummary {
-  const debtTxs = transactions.filter(isInDebtPeriod)
-
   let expense_kevin = 0
   let expense_josephine = 0
   let paid_kevin = 0
@@ -39,7 +20,7 @@ export function calculateDebt(transactions: Transaction[]): DebtSummary {
   let bh_kevin = 0
   let bh_josephine = 0
 
-  for (const tx of debtTxs) {
+  for (const tx of transactions) {
     if (tx.type === 'Expense') {
       if (tx.expense_kevin != null) expense_kevin += tx.expense_kevin
       if (tx.expense_josephine != null) expense_josephine += tx.expense_josephine
@@ -52,19 +33,21 @@ export function calculateDebt(transactions: Transaction[]): DebtSummary {
     // Income: ignored
   }
 
-  // Excel formula:
-  const sisa_kevin = Math.max(0, expense_kevin - paid_kevin + HUTANG_LAMA_KEVIN - bh_kevin + bh_josephine)
-  const sisa_josephine = Math.max(0, expense_josephine - paid_josephine - HUTANG_LAMA_KEVIN - bh_josephine + bh_kevin)
+  // Kevin credit = paid_kevin - expense_kevin
+  // Positive = Kevin overpaid = Josephine owes Kevin
+  // Note: kevin_credit and jo_credit always sum to ~0 (same debt, two perspectives)
+  // So net = kevin_credit only — do NOT subtract jo_credit (that double-counts)
+  const kevin_credit = paid_kevin - expense_kevin
 
-  // net > 0 = Josephine owes Kevin, net < 0 = Kevin owes Josephine
-  const net = round2(sisa_josephine - sisa_kevin)
+  // Bayar hutang directly reduces the outstanding balance
+  const net = round2(kevin_credit - bh_josephine + bh_kevin)
 
   return {
     expense_kevin: round2(expense_kevin),
     expense_josephine: round2(expense_josephine),
     paid_kevin: round2(paid_kevin),
     paid_josephine: round2(paid_josephine),
-    hutang_lama: HUTANG_LAMA_KEVIN,
+    hutang_lama: 0,
     hutang_dibayar: round2(bh_kevin + bh_josephine),
     net,
   }
@@ -72,7 +55,6 @@ export function calculateDebt(transactions: Transaction[]): DebtSummary {
 
 /**
  * Per-category breakdown for a specific month/year.
- * Used by dashboard category list and trends page.
  */
 export function getMonthlyBreakdown(
   transactions: Transaction[],
