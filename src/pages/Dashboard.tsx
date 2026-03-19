@@ -8,7 +8,16 @@ export default function Dashboard() {
 
   const months = ['January','February','March','April','May','June','July','August','September','October','November','December']
 
-  const debt = useMemo(() => calculateDebt(transactions), [transactions])
+  const monthTransactions = useMemo(
+    () =>
+      transactions.filter(
+        tx =>
+          tx.month === activeMonth &&
+          new Date(tx.date).getFullYear() === activeYear
+      ),
+    [transactions, activeMonth, activeYear]
+  )
+  const debt = useMemo(() => calculateDebt(monthTransactions), [monthTransactions])
   const breakdown = useMemo(() => getMonthlyBreakdown(transactions, activeMonth, activeYear), [transactions, activeMonth, activeYear])
 
   const personCats = activePerson === 'Kevin' ? breakdown.kevin : breakdown.josephine
