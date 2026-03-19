@@ -12,19 +12,20 @@ const DATA_START_ROW = 3
  * Robustly parse money values from Google Sheets.
  * Handles: "8.50", "€8.50", "1,234.56", empty strings.
  */
-function parseMoney(value?: string): number {
-  if (!value) return 0
+function parseMoney(value?: string | number): number {
+  if (value === null || value === undefined || value === '') return 0
+  if (typeof value === 'number') return Number.isFinite(value) ? value : 0
   const cleaned = String(value).trim().replace(/[^0-9.-]/g, '')
   if (!cleaned) return 0
   const num = Number(cleaned)
   return Number.isFinite(num) ? num : 0
 }
 
-function rowToTransaction(row: string[], rowIndex: number): Transaction | null {
+function rowToTransaction(row: (string | number | boolean)[], rowIndex: number): Transaction | null {
   if (!row[0] && !row[1]) return null
   try {
     const month = parseInt(row[0])
-    const date = parseDate(row[1])
+    const date = parseDate(row[1] as string | number)
     const description = row[2] || ''
     const category = row[3] as Category
     const paid_by = row[4] as PaidBy
@@ -67,10 +68,16 @@ function rowToTransaction(row: string[], rowIndex: number): Transaction | null {
   }
 }
 
-function parseDate(val: string): string {
-  if (!val) return ''
-  const trimmed = val.trim()
-  // Handle Excel serial date numbers (integers OR floats like "45993.0")
+function parseDate(val: string | number): string {
+  if (val === null || val === undefined || val === '') return ''
+  // Google Sheets API with UNFORMATTED_VALUE returns dates as numbers (e.g. 45945)
+  if (typeof val === 'number') {
+    const date = new Date(Math.round(val - 25569) * 86400 * 1000)
+    return date.toISOString().split('T')[0]
+  }
+  const trimmed = String(val).trim()
+  if (!trimmed) return ''
+  // Handle serial numbers passed as strings (e.g. "45945" or "45945.0")
   if (/^\d+(\.\d+)?$/.test(trimmed)) {
     const serial = parseFloat(trimmed)
     const date = new Date(Math.round(serial - 25569) * 86400 * 1000)
@@ -108,7 +115,7 @@ export async function fetchTransactions(): Promise<Transaction[]> {
   const res = await fetch(url)
   if (!res.ok) throw new Error(`Sheets API error: ${res.status} ${res.statusText}`)
   const data = await res.json()
-  const rows: string[][] = data.values || []
+  const rows: (string | number | boolean)[][] = data.values || []
   return rows
     .map((row, i) => rowToTransaction(row, DATA_START_ROW + i))
     .filter((tx): tx is Transaction => tx !== null)
