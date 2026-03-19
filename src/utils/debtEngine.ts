@@ -61,11 +61,13 @@ export function getMonthlyBreakdown(
   month: number,
   year: number
 ): MonthlyBreakdown {
+  // Filter by month AND year — avoid new Date() parsing issues
+  // by using string prefix comparison on the ISO date string
+  const yearMonth = `${year}-${String(month).padStart(2, '0')}`
   const monthTx = transactions.filter(
     tx =>
       tx.type === 'Expense' &&
-      tx.month === month &&
-      new Date(tx.date).getFullYear() === year
+      tx.date.startsWith(yearMonth)
   )
 
   const kevin: Partial<Record<string, number>> = {}

@@ -18,8 +18,12 @@ export default function Dashboard() {
     'July','August','September','October','November','December',
   ]
 
-  // Debt = ALL TIME across all transactions (not filtered by month)
-  const debt = useMemo(() => calculateDebt(transactions), [transactions])
+  // Debt = current selected month only (fresh start each month)
+  const monthTransactions = useMemo(() => {
+    const yearMonth = `${activeYear}-${String(activeMonth).padStart(2, '0')}`
+    return transactions.filter(tx => tx.date.startsWith(yearMonth))
+  }, [transactions, activeMonth, activeYear])
+  const debt = useMemo(() => calculateDebt(monthTransactions), [monthTransactions])
 
   // Monthly breakdown = only the selected month (for category display + projections)
   const breakdown = useMemo(
@@ -34,13 +38,12 @@ export default function Dashboard() {
 
   // How much the active person physically paid out this month
   const personPaid = useMemo(() => {
+    const yearMonth = `${activeYear}-${String(activeMonth).padStart(2, '0')}`
     return transactions
-      .filter(
-        tx =>
-          tx.type === 'Expense' &&
-          tx.paid_by === activePerson &&
-          tx.month === activeMonth &&
-          new Date(tx.date).getFullYear() === activeYear
+      .filter(tx =>
+        tx.type === 'Expense' &&
+        tx.paid_by === activePerson &&
+        tx.date.startsWith(yearMonth)
       )
       .reduce((s, tx) => s + tx.amount, 0)
   }, [transactions, activePerson, activeMonth, activeYear])
@@ -103,7 +106,7 @@ export default function Dashboard() {
       {/* Debt card — all-time running balance */}
       <div className="card" style={{ margin: '0 16px 12px' }}>
         <div className="section-label" style={{ padding: 0, marginBottom: 8 }}>
-          Current balance (all time)
+          Current balance
         </div>
         <div style={{ fontSize: 38, fontWeight: 500, letterSpacing: -1.5, color: 'var(--color-text-primary)' }}>
           €{netAbs.toFixed(2)}
