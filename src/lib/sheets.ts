@@ -1,30 +1,34 @@
 import { Transaction, TransactionType, PaidBy, SplitType, Category } from '../types'
-import env from "react-dotenv";
 
-const SHEET_ID = import.meta.env.VITE_SHEET_ID || env.VITE_SHEET_ID
-const API_KEY = import.meta.env.VITE_SHEETS_API_KEY || env.VITE_SHEETS_API_KEY
+const SHEET_ID = import.meta.env.VITE_SHEET_ID
+const API_KEY = import.meta.env.VITE_SHEETS_API_KEY
 const SHEET_NAME = 'Transactions'
 const BASE_URL = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}`
 
 // Row 1 = totals, Row 2 = headers, data starts at Row 3
 const DATA_START_ROW = 3
 
+/**
+ * Robustly parse money values from Google Sheets.
+ * Handles: "8.50", "€8.50", "1,234.56", empty strings.
+ */
 function parseMoney(value?: string): number {
   if (!value) return 0
-  const cleaned = String(value).trim().replace(/[^0-9.-]/g, "")
+  const cleaned = String(value).trim().replace(/[^0-9.-]/g, '')
   if (!cleaned) return 0
   const num = Number(cleaned)
   return Number.isFinite(num) ? num : 0
 }
+
 function rowToTransaction(row: string[], rowIndex: number): Transaction | null {
-  if (!row[0] && !row[1]) return null // empty row
+  if (!row[0] && !row[1]) return null
   try {
     const month = parseInt(row[0])
     const date = parseDate(row[1])
     const description = row[2] || ''
     const category = row[3] as Category
     const paid_by = row[4] as PaidBy
-    const amount = parseMoney(row[5]) || 0
+    const amount = parseMoney(row[5])
     const type = (row[6] || 'Expense') as TransactionType
     const split = row[7]?.toString().toLowerCase() === 'true'
     const expense_kevin = row[8] ? parseMoney(row[8]) : null
@@ -33,7 +37,7 @@ function rowToTransaction(row: string[], rowIndex: number): Transaction | null {
 
     if (!date || !description || isNaN(amount)) return null
 
-    // Infer split_type from values
+    // Infer split_type from stored values
     let split_type: SplitType = 'equal'
     if (split && expense_kevin != null && expense_josephine != null) {
       const expectedHalf = amount / 2
@@ -71,7 +75,6 @@ function parseDate(val: string): string {
     const date = new Date((serial - 25569) * 86400 * 1000)
     return date.toISOString().split('T')[0]
   }
-  // Handle ISO or other formats
   try {
     const d = new Date(val)
     if (!isNaN(d.getTime())) return d.toISOString().split('T')[0]
@@ -92,7 +95,7 @@ function transactionToRow(tx: Omit<Transaction, 'id' | 'row_index'>): string[] {
     tx.expense_kevin != null ? String(tx.expense_kevin) : '',
     tx.expense_josephine != null ? String(tx.expense_josephine) : '',
     tx.notes || '',
-    '', // Cash? column - always empty
+    '', // Cash? column — always empty
   ]
 }
 
@@ -113,11 +116,10 @@ export async function appendTransaction(
 ): Promise<void> {
   const range = `${SHEET_NAME}!A:L`
   const url = `${BASE_URL}/values/${encodeURIComponent(range)}:append?valueInputOption=USER_ENTERED&key=${API_KEY}`
-  const row = transactionToRow(tx)
   const res = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ values: [row] }),
+    body: JSON.stringify({ values: [transactionToRow(tx)] }),
   })
   if (!res.ok) throw new Error(`Sheets append error: ${res.status}`)
 }
@@ -127,11 +129,10 @@ export async function appendTransactions(
 ): Promise<void> {
   const range = `${SHEET_NAME}!A:L`
   const url = `${BASE_URL}/values/${encodeURIComponent(range)}:append?valueInputOption=USER_ENTERED&key=${API_KEY}`
-  const rows = txs.map(transactionToRow)
   const res = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ values: rows }),
+    body: JSON.stringify({ values: txs.map(transactionToRow) }),
   })
   if (!res.ok) throw new Error(`Sheets append error: ${res.status}`)
 }
