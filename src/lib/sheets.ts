@@ -8,6 +8,13 @@ const BASE_URL = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}`
 // Row 1 = totals, Row 2 = headers, data starts at Row 3
 const DATA_START_ROW = 3
 
+function parseMoney(value?: string): number {
+  if (!value) return 0
+  const cleaned = String(value).trim().replace(/[^0-9.-]/g, "")
+  if (!cleaned) return 0
+  const num = Number(cleaned)
+  return Number.isFinite(num) ? num : 0
+}
 function rowToTransaction(row: string[], rowIndex: number): Transaction | null {
   if (!row[0] && !row[1]) return null // empty row
   try {
@@ -16,11 +23,11 @@ function rowToTransaction(row: string[], rowIndex: number): Transaction | null {
     const description = row[2] || ''
     const category = row[3] as Category
     const paid_by = row[4] as PaidBy
-    const amount = parseFloat(row[5]) || 0
+    const amount = parseMoney(row[5]) || 0
     const type = (row[6] || 'Expense') as TransactionType
     const split = row[7]?.toString().toLowerCase() === 'true'
-    const expense_kevin = row[8] ? parseFloat(row[8]) : null
-    const expense_josephine = row[9] ? parseFloat(row[9]) : null
+    const expense_kevin = row[8] ? parseMoney(row[8]) : null
+    const expense_josephine = row[9] ? parseMoney(row[9]) : null
     const notes = row[10] || null
 
     if (!date || !description || isNaN(amount)) return null
