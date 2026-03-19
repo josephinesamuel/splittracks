@@ -60,8 +60,15 @@ export function getMonthlyBreakdown(
     }
   }
 
-  const total_kevin = Object.values(kevin).reduce((a, b) => a + (b || 0), 0)
-  const total_josephine = Object.values(josephine).reduce((a, b) => a + (b || 0), 0)
+  const total_kevin = Object.values(kevin).reduce(
+    (a: number, b) => a + (b ?? 0),
+    0
+  )
+  
+  const total_josephine = Object.values(josephine).reduce(
+    (a: number, b) => a + (b ?? 0),
+    0
+  )
 
   return {
     month,
