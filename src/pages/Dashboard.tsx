@@ -90,12 +90,12 @@ export default function Dashboard() {
       <div className="stat-grid">
         <div className="stat-card">
           <div className="stat-label">Spent so far</div>
-          <div className="stat-value">€{Math.round(personTotal).toLocaleString()}</div>
-          <div className="stat-proj">proj. €{Math.round(personProj).toLocaleString()}</div>
+          <div className="stat-value">€{personTotal.toFixed(2)}</div>
+          <div className="stat-proj">proj. €{personProj.toFixed(2)}</div>
         </div>
         <div className="stat-card">
           <div className="stat-label">Bills paid out</div>
-          <div className="stat-value">€{Math.round(personPaid).toLocaleString()}</div>
+          <div className="stat-value">€{personPaid.toFixed(2)}</div>
           <div className="stat-proj">this month</div>
         </div>
       </div>

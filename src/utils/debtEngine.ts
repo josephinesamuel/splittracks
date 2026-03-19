@@ -44,8 +44,9 @@ export function getMonthlyBreakdown(
   year: number
 ): MonthlyBreakdown {
   const monthTx = transactions.filter(
-    tx => tx.month === month && tx.type === 'Expense' &&
-    new Date(tx.date).getFullYear() === year
+    tx => tx.month === month && tx.type === 'Expense' 
+    // &&
+    // new Date(tx.date).getFullYear() === year
   )
 
   const kevin: Partial<Record<string, number>> = {}

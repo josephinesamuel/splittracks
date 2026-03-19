@@ -1,7 +1,8 @@
 import { Transaction, TransactionType, PaidBy, SplitType, Category } from '../types'
+import env from "react-dotenv";
 
-const SHEET_ID = import.meta.env.VITE_SHEET_ID
-const API_KEY = import.meta.env.VITE_SHEETS_API_KEY
+const SHEET_ID = import.meta.env.VITE_SHEET_ID || env.VITE_SHEET_ID
+const API_KEY = import.meta.env.VITE_SHEETS_API_KEY || env.VITE_SHEETS_API_KEY
 const SHEET_NAME = 'Transactions'
 const BASE_URL = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}`
 
