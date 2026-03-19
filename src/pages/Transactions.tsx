@@ -16,23 +16,56 @@ export default function Transactions() {
   const [view, setView] = useState<ViewTab>('mine')
   const [search, setSearch] = useState('')
   const [openDrawer, setOpenDrawer] = useState<FilterKey | null>(null)
+
+  // Default: current month pre-selected
+  const currentMonth = new Date().getMonth() + 1
+  const currentYear = new Date().getFullYear()
+
   const [pendingFilters, setPendingFilters] = useState<Record<FilterKey, Set<string>>>({
-    month: new Set(), cat: new Set(), type: new Set(), split: new Set()
+    month: new Set([String(currentMonth)]),
+    cat: new Set(), type: new Set(), split: new Set(),
   })
   const [appliedFilters, setAppliedFilters] = useState<Record<FilterKey, Set<string>>>({
-    month: new Set(), cat: new Set(), type: new Set(), split: new Set()
+    month: new Set([String(currentMonth)]),
+    cat: new Set(), type: new Set(), split: new Set(),
   })
 
   const availableMonths = useMemo(() => {
-    const months = new Set(transactions.map(t => t.month))
-    return [...months].sort((a, b) => b - a)
+    const seen = new Set<string>()
+    transactions.forEach(tx => {
+      // Use date string prefix to get year+month reliably
+      if (tx.date && tx.date.length >= 7) {
+        const [y, m] = tx.date.split('-')
+        seen.add(`${y}-${m}`)
+      }
+    })
+    return [...seen]
+      .sort((a, b) => b.localeCompare(a))
+      .map(ym => {
+        const [y, m] = ym.split('-')
+        return { key: ym, year: parseInt(y), month: parseInt(m) }
+      })
   }, [transactions])
 
   const filtered = useMemo(() => {
     return transactions.filter(tx => {
+      // Search
       if (search && !tx.description.toLowerCase().includes(search.toLowerCase()) &&
           !tx.category.toLowerCase().includes(search.toLowerCase())) return false
-      if (appliedFilters.month.size && !appliedFilters.month.has(String(tx.month))) return false
+
+      // Month filter — use date string prefix for reliability
+      if (appliedFilters.month.size) {
+        const txYearMonth = tx.date?.slice(0, 7) // "2026-03"
+        const match = [...appliedFilters.month].some(key => {
+          // key is either "YYYY-MM" (new format) or just "M" (legacy)
+          if (key.includes('-')) return txYearMonth === key
+          // legacy: just month number — match against current year
+          const m = parseInt(key)
+          return txYearMonth === `${currentYear}-${String(m).padStart(2, '0')}`
+        })
+        if (!match) return false
+      }
+
       if (appliedFilters.cat.size && !appliedFilters.cat.has(tx.category)) return false
       if (appliedFilters.type.size && !appliedFilters.type.has(tx.type)) return false
       if (appliedFilters.split.size) {
@@ -41,6 +74,7 @@ export default function Transactions() {
         if (wantSplit && !wantPersonal && !tx.split) return false
         if (wantPersonal && !wantSplit && tx.split) return false
       }
+
       if (view === 'mine') {
         if (tx.type === 'Bayar hutang') return false
         return getPersonExpense(tx, activePerson) > 0
@@ -48,24 +82,30 @@ export default function Transactions() {
         return tx.paid_by === activePerson && tx.type === 'Expense'
       }
     })
-  }, [transactions, search, appliedFilters, view, activePerson])
+  }, [transactions, search, appliedFilters, view, activePerson, currentYear])
 
   const totalAmt = filtered.reduce((s, tx) =>
     s + (view === 'mine' ? getPersonExpense(tx, activePerson) : tx.amount), 0)
 
-  // Group by date
+  // Group by date descending — use tx.date string directly (already ISO "YYYY-MM-DD")
   const grouped = useMemo(() => {
     const groups: Record<string, typeof filtered> = {}
     filtered.forEach(tx => {
-      if (!groups[tx.date]) groups[tx.date] = []
-      groups[tx.date].push(tx)
+      const key = tx.date || 'unknown'
+      if (!groups[key]) groups[key] = []
+      groups[key].push(tx)
     })
     return Object.entries(groups).sort(([a], [b]) => b.localeCompare(a))
   }, [filtered])
 
-  const formatDate = (d: string) => {
-    const date = new Date(d)
-    return date.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })
+  const formatDate = (dateStr: string) => {
+    // Parse as UTC to avoid timezone shifts
+    const [y, m, d] = dateStr.split('-').map(Number)
+    const date = new Date(Date.UTC(y, m - 1, d))
+    return date.toLocaleDateString('en-GB', {
+      weekday: 'short', day: 'numeric', month: 'short', year: 'numeric',
+      timeZone: 'UTC'
+    })
   }
 
   const toggleDrawer = (key: FilterKey) => {
@@ -93,8 +133,24 @@ export default function Transactions() {
 
   const hasFilter = (key: FilterKey) => appliedFilters[key].size > 0
 
+  // Month chip label — show selected month names
+  const monthChipLabel = () => {
+    if (!hasFilter('month')) return 'Month'
+    const names = [...appliedFilters.month].map(key => {
+      if (key.includes('-')) {
+        const [, m] = key.split('-')
+        return MONTHS[parseInt(m)] || key
+      }
+      return MONTHS[parseInt(key)] || key
+    })
+    return names.join(', ')
+  }
+
   const drawerOpts: Record<FilterKey, { val: string; label: string }[]> = {
-    month: availableMonths.map(m => ({ val: String(m), label: MONTHS[m] || `Month ${m}` })),
+    month: availableMonths.map(({ key, year, month }) => ({
+      val: key,
+      label: `${MONTHS[month]} ${year}`
+    })),
     cat: ALL_CATEGORIES.map(c => ({ val: c, label: `${CATEGORY_ICONS[c as Category] || ''} ${c}` })),
     type: ['Expense', 'Bayar hutang', 'Income'].map(t => ({ val: t, label: t })),
     split: ['Split', 'Personal'].map(s => ({ val: s, label: s })),
@@ -128,14 +184,15 @@ export default function Transactions() {
       <div className="filter-bar">
         {(['month', 'cat', 'type', 'split'] as FilterKey[]).map(key => (
           <div key={key} className={`fchip${hasFilter(key) ? ' on' : ''}`} onClick={() => toggleDrawer(key)}>
-            {key === 'cat' ? 'Category' : key.charAt(0).toUpperCase() + key.slice(1)} <span style={{ fontSize: 9, opacity: 0.6 }}>▾</span>
+            {key === 'month' ? monthChipLabel() : key === 'cat' ? 'Category' : key.charAt(0).toUpperCase() + key.slice(1)}
+            {' '}<span style={{ fontSize: 9, opacity: 0.6 }}>▾</span>
           </div>
         ))}
       </div>
 
       {/* Filter drawers */}
-      {(['month', 'cat', 'type', 'split'] as FilterKey[]).map(key => (
-        openDrawer === key && (
+      {(['month', 'cat', 'type', 'split'] as FilterKey[]).map(key =>
+        openDrawer === key ? (
           <div key={key} className="filter-drawer open">
             <div className="drawer-section">
               <div className="drawer-label">{key === 'cat' ? 'Category' : key.charAt(0).toUpperCase() + key.slice(1)}</div>
@@ -152,8 +209,8 @@ export default function Transactions() {
               <button className="drawer-apply" onClick={() => applyFilter(key)}>Apply</button>
             </div>
           </div>
-        )
-      ))}
+        ) : null
+      )}
 
       {/* Summary strip */}
       <div className="summary-strip">
