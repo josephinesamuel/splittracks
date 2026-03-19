@@ -21,9 +21,17 @@ export default function Dashboard() {
       .reduce((s, tx) => s + tx.amount, 0)
   }, [transactions, activePerson, activeMonth, activeYear])
 
-  const netAbs = Math.abs(debt.net)
-  const oweText = debt.net > 0.01 ? 'Josephine owes Kevin' : debt.net < -0.01 ? 'Kevin owes Josephine' : 'All settled up'
-  const isSettled = Math.abs(debt.net) < 0.01
+  const personNet = activePerson === 'Kevin' ? debt.net : -debt.net
+  const netAbs = Math.abs(personNet)
+  
+  const oweText =
+  Math.abs(personNet) < 0.01
+    ? 'All settled up'
+    : activePerson === 'Kevin'
+      ? (debt.net > 0 ? 'Josephine owes Kevin' : 'Kevin owes Josephine')
+      : (debt.net > 0 ? 'Josephine owes Kevin' : 'Kevin owes Josephine')
+  
+  const isSettled = Math.abs(personNet) < 0.01
 
   const changeMonth = (dir: number) => {
     let m = activeMonth + dir
