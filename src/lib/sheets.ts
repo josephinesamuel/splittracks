@@ -101,7 +101,9 @@ function transactionToRow(tx: Omit<Transaction, 'id' | 'row_index'>): string[] {
 
 export async function fetchTransactions(): Promise<Transaction[]> {
   const range = `${SHEET_NAME}!A3:L`
-  const url = `${BASE_URL}/values/${encodeURIComponent(range)}?key=${API_KEY}`
+  // UNFORMATTED_VALUE returns dates as Excel serial numbers (e.g. 45945)
+  // instead of locale-formatted strings (e.g. "Wed, Oct 15") which lose the year
+  const url = `${BASE_URL}/values/${encodeURIComponent(range)}?valueRenderOption=UNFORMATTED_VALUE&key=${API_KEY}`
   const res = await fetch(url)
   if (!res.ok) throw new Error(`Sheets API error: ${res.status} ${res.statusText}`)
   const data = await res.json()
