@@ -22,13 +22,32 @@ export default function Dashboard() {
   // tx.month is the number from column A (reliable)
   // year is extracted from tx.date first 4 chars (reliable if date is ISO format)
   // Fallback: if date is missing/malformed, use tx.month only for current year
+  // const monthTransactions = useMemo(() => {
+  //   return transactions.filter(tx => {
+  //     if (tx.month !== activeMonth) return false
+  //     // Extract year from date string — handles "2026-03-01", "2026-03-01T00:00:00.000Z"
+  //     const yearFromDate = tx.date ? parseInt(tx.date.substring(0, 4)) : activeYear
+  //     return yearFromDate === activeYear
+  //   })
+  // }, [transactions, activeMonth, activeYear])
   const monthTransactions = useMemo(() => {
-    return transactions.filter(tx => {
+    const filtered = transactions.filter(tx => {
       if (tx.month !== activeMonth) return false
-      // Extract year from date string — handles "2026-03-01", "2026-03-01T00:00:00.000Z"
       const yearFromDate = tx.date ? parseInt(tx.date.substring(0, 4)) : activeYear
       return yearFromDate === activeYear
     })
+  
+    // ADD THESE:
+    console.log('=== DASHBOARD DEBUG ===')
+    console.log('activeMonth:', activeMonth, 'activeYear:', activeYear)
+    console.log('total transactions:', transactions.length)
+    console.log('filtered monthTransactions:', filtered.length)
+    console.log('first tx sample:', transactions[0])
+    console.log('first tx month:', transactions[0]?.month, 'type:', typeof transactions[0]?.month)
+    console.log('first tx date:', transactions[0]?.date, 'type:', typeof transactions[0]?.date)
+    console.log('=======================')
+  
+    return filtered
   }, [transactions, activeMonth, activeYear])
 
   // Debt from current month only
