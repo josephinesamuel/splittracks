@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import { useAppStore } from '../stores/appStore'
 import { calculateDebt, getMonthlyProjection } from '../utils/debtEngine'
-import { CATEGORY_ICONS, CATEGORY_COLORS, FIXED_CATEGORIES, Category, ALL_CATEGORIES } from '../types'
+import { CATEGORY_ICONS, CATEGORY_COLORS, FIXED_CATEGORIES, Category } from '../types'
 
 export default function Dashboard() {
   const {
@@ -18,18 +18,23 @@ export default function Dashboard() {
     'July','August','September','October','November','December',
   ]
 
-  // Single reliable filter — string prefix on ISO date "YYYY-MM"
-  const yearMonth = `${activeYear}-${String(activeMonth).padStart(2, '0')}`
-
-  const monthTransactions = useMemo(
-    () => transactions.filter(tx => tx.date.startsWith(yearMonth)),
-    [transactions, yearMonth]
-  )
+  // Filter by month number AND year extracted from date string
+  // tx.month is the number from column A (reliable)
+  // year is extracted from tx.date first 4 chars (reliable if date is ISO format)
+  // Fallback: if date is missing/malformed, use tx.month only for current year
+  const monthTransactions = useMemo(() => {
+    return transactions.filter(tx => {
+      if (tx.month !== activeMonth) return false
+      // Extract year from date string — handles "2026-03-01", "2026-03-01T00:00:00.000Z"
+      const yearFromDate = tx.date ? parseInt(tx.date.substring(0, 4)) : activeYear
+      return yearFromDate === activeYear
+    })
+  }, [transactions, activeMonth, activeYear])
 
   // Debt from current month only
   const debt = useMemo(() => calculateDebt(monthTransactions), [monthTransactions])
 
-  // Category breakdown — built directly from monthTransactions
+  // Category breakdown built directly from monthTransactions
   const kevinCats = useMemo(() => {
     const cats: Record<string, number> = {}
     for (const tx of monthTransactions) {
@@ -52,31 +57,30 @@ export default function Dashboard() {
     return cats
   }, [monthTransactions])
 
-  const kevinTotal = useMemo(
-    () => Object.values(kevinCats).reduce((a, b) => a + b, 0),
+  const kevinTotal: number = useMemo(
+    () => Object.values(kevinCats).reduce((a: number, b: number) => a + b, 0),
     [kevinCats]
   )
 
-  const joTotal = useMemo(
-    () => Object.values(joCats).reduce((a, b) => a + b, 0),
+  const joTotal: number = useMemo(
+    () => Object.values(joCats).reduce((a: number, b: number) => a + b, 0),
     [joCats]
   )
 
-  const kevinProj = useMemo(
+  const kevinProj: number = useMemo(
     () => getMonthlyProjection(kevinCats, activeMonth, activeYear),
     [kevinCats, activeMonth, activeYear]
   )
 
-  const joProj = useMemo(
+  const joProj: number = useMemo(
     () => getMonthlyProjection(joCats, activeMonth, activeYear),
     [joCats, activeMonth, activeYear]
   )
 
-  // Bills physically paid out this month by active person
-  const personPaid = useMemo(
+  const personPaid: number = useMemo(
     () => monthTransactions
       .filter(tx => tx.type === 'Expense' && tx.paid_by === activePerson)
-      .reduce((s, tx) => s + tx.amount, 0),
+      .reduce((s: number, tx) => s + tx.amount, 0),
     [monthTransactions, activePerson]
   )
 
@@ -108,7 +112,6 @@ export default function Dashboard() {
 
   return (
     <div className="page">
-
       <div className="topbar">
         <span className="topbar-title">SplitTrack</span>
         <div className="month-switcher">
