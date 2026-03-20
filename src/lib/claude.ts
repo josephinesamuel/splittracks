@@ -1,9 +1,5 @@
 import { Category, ALL_CATEGORIES } from '../types'
-// import env from "react-dotenv";
 
-const ANTHROPIC_API_URL = 'https://api.anthropic.com/v1/messages'
-// const API_KEY = import.meta.env.VITE_ANTHROPIC_API_KEY || env.VITE_SHEETS_API_KEY
-const API_KEY = import.meta.env.VITE_ANTHROPIC_API_KEY
 export interface ScannedTransaction {
   description: string
   amount: number
@@ -13,46 +9,21 @@ export interface ScannedTransaction {
 }
 
 export async function scanReceiptImage(base64Image: string, mimeType: string): Promise<ScannedTransaction[]> {
-  const response = await fetch(ANTHROPIC_API_URL, {
+  // Call via /api/claude-ocr (Vercel serverless function)
+  // because browsers block direct calls to api.anthropic.com (CORS)
+  const response = await fetch('/api/claude-ocr', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 1000,
-      system: `You are a bank transaction extractor. Extract ALL transactions from the image.
-Return ONLY valid JSON, no markdown, no explanation.
-Format: {"transactions": [{"description": string, "amount": number (positive = expense, negative = income/refund), "date": "YYYY-MM-DD", "category": one of ${JSON.stringify(ALL_CATEGORIES)}, "confidence": "high" or "low"}]}
-Rules:
-- amount is always positive for expenses, negative for refunds/income
-- Guess the best category from the list based on merchant name
-- date: use today if not visible: ${new Date().toISOString().split('T')[0]}
-- confidence: "low" if amount or description is unclear`,
-      messages: [
-        {
-          role: 'user',
-          content: [
-            {
-              type: 'image',
-              source: { type: 'base64', media_type: mimeType, data: base64Image },
-            },
-            { type: 'text', text: 'Extract all transactions from this bank screenshot.' },
-          ],
-        },
-      ],
-    }),
+    body: JSON.stringify({ base64Image, mimeType }),
   })
 
-  if (!response.ok) throw new Error(`Claude API error: ${response.status}`)
-  const data = await response.json()
-  const text = data.content?.find((b: { type: string }) => b.type === 'text')?.text || ''
-
-  try {
-    const clean = text.replace(/```json|```/g, '').trim()
-    const parsed = JSON.parse(clean)
-    return parsed.transactions || []
-  } catch {
-    throw new Error('Failed to parse Claude response')
+  if (!response.ok) {
+    const err = await response.text()
+    throw new Error(`OCR error: ${response.status} — ${err}`)
   }
+
+  const data = await response.json()
+  return data.transactions || []
 }
 
 export function fileToBase64(file: File): Promise<{ base64: string; mimeType: string }> {
