@@ -1,4 +1,4 @@
-const ANTHROPIC_API_KEY = import.meta.env.VITE_ANTHROPIC_API_KEY
+const ANTHROPIC_API_KEY = import.meta.env.ANTHROPIC_API_KEY || import.meta.env.VITE_ANTHROPIC_API_KEY
 
 const ALL_CATEGORIES = [
   'Accomodation','Equipment','Food','Groceries','Gym',
@@ -10,14 +10,25 @@ export default async function handler(req: any, res: any) {
     return res.status(405).json({ error: 'Method not allowed' })
   }
 
-  if (!ANTHROPIC_API_KEY) {
-    return res.status(500).json({ error: 'ANTHROPIC_API_KEY not configured' })
+  // Return key status for debugging
+  const keyStatus = {
+    ANTHROPIC_API_KEY: !!import.meta.env.ANTHROPIC_API_KEY,
+    VITE_ANTHROPIC_API_KEY: !!import.meta.env.VITE_ANTHROPIC_API_KEY,
+    resolved: !!ANTHROPIC_API_KEY,
   }
 
-  const { base64Image, mimeType } = req.body
+  if (!ANTHROPIC_API_KEY) {
+    return res.status(500).json({ error: 'No API key found', keyStatus })
+  }
+
+  const body = req.body || {}
+  const { base64Image, mimeType } = body
 
   if (!base64Image || !mimeType) {
-    return res.status(400).json({ error: 'Missing base64Image or mimeType' })
+    return res.status(400).json({
+      error: 'Missing base64Image or mimeType',
+      receivedKeys: Object.keys(body)
+    })
   }
 
   try {
@@ -38,25 +49,23 @@ Rules:
 - amount is positive for expenses, negative for refunds/income
 - Guess the best category from the list based on merchant name
 - date: use today if not visible: ${new Date().toISOString().split('T')[0]}
-- confidence: "low" if amount or description is unclear`,
-        messages: [
-          {
-            role: 'user',
-            content: [
-              {
-                type: 'image',
-                source: { type: 'base64', media_type: mimeType, data: base64Image },
-              },
-              { type: 'text', text: 'Extract all transactions from this bank screenshot.' },
-            ],
-          },
-        ],
+- confidence "low" if amount or description is unclear`,
+        messages: [{
+          role: 'user',
+          content: [
+            { type: 'image', source: { type: 'base64', media_type: mimeType, data: base64Image } },
+            { type: 'text', text: 'Extract all transactions from this bank screenshot.' },
+          ],
+        }],
       }),
     })
 
     if (!response.ok) {
-      const err = await response.text()
-      return res.status(response.status).json({ error: err })
+      const errText = await response.text()
+      return res.status(response.status).json({
+        error: `Claude API returned ${response.status}`,
+        detail: errText
+      })
     }
 
     const data = await response.json()
@@ -70,6 +79,6 @@ Rules:
       return res.status(500).json({ error: 'Failed to parse Claude response', raw: text })
     }
   } catch (err) {
-    return res.status(500).json({ error: String(err) })
+    return res.status(500).json({ error: 'Fetch failed', detail: String(err) })
   }
 }
