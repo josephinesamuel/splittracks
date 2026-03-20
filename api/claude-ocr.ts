@@ -1,3 +1,12 @@
+// api/claude-ocr.ts
+export const config = {
+  api: {
+    bodyParser: {
+      sizeLimit: '10mb',
+    },
+  },
+}
+
 const ANTHROPIC_API_KEY = import.meta.env.ANTHROPIC_API_KEY || import.meta.env.VITE_ANTHROPIC_API_KEY
 
 const ALL_CATEGORIES = [
@@ -10,15 +19,8 @@ export default async function handler(req: any, res: any) {
     return res.status(405).json({ error: 'Method not allowed' })
   }
 
-  // Return key status for debugging
-  const keyStatus = {
-    ANTHROPIC_API_KEY: !!import.meta.env.ANTHROPIC_API_KEY,
-    VITE_ANTHROPIC_API_KEY: !!import.meta.env.VITE_ANTHROPIC_API_KEY,
-    resolved: !!ANTHROPIC_API_KEY,
-  }
-
   if (!ANTHROPIC_API_KEY) {
-    return res.status(500).json({ error: 'No API key found', keyStatus })
+    return res.status(500).json({ error: 'ANTHROPIC_API_KEY not configured' })
   }
 
   const body = req.body || {}
@@ -27,7 +29,7 @@ export default async function handler(req: any, res: any) {
   if (!base64Image || !mimeType) {
     return res.status(400).json({
       error: 'Missing base64Image or mimeType',
-      receivedKeys: Object.keys(body)
+      receivedKeys: Object.keys(body),
     })
   }
 
@@ -64,7 +66,7 @@ Rules:
       const errText = await response.text()
       return res.status(response.status).json({
         error: `Claude API returned ${response.status}`,
-        detail: errText
+        detail: errText,
       })
     }
 
