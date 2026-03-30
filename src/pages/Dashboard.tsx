@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { useAppStore } from '../stores/appStore'
-import { calculateDebt, getMonthlyProjection } from '../utils/debtEngine'
+import { calculateDebt, getMonthlyBreakdown } from '../utils/debtEngine'
 import { CATEGORY_ICONS, CATEGORY_COLORS, FIXED_CATEGORIES, Category } from '../types'
 
 export default function Dashboard() {
@@ -18,97 +18,39 @@ export default function Dashboard() {
     'July','August','September','October','November','December',
   ]
 
-  // Filter by month number AND year extracted from date string
-  // tx.month is the number from column A (reliable)
-  // year is extracted from tx.date first 4 chars (reliable if date is ISO format)
-  // Fallback: if date is missing/malformed, use tx.month only for current year
-  // const monthTransactions = useMemo(() => {
-  //   return transactions.filter(tx => {
-  //     if (tx.month !== activeMonth) return false
-  //     // Extract year from date string — handles "2026-03-01", "2026-03-01T00:00:00.000Z"
-  //     const yearFromDate = tx.date ? parseInt(tx.date.substring(0, 4)) : activeYear
-  //     return yearFromDate === activeYear
-  //   })
-  // }, [transactions, activeMonth, activeYear])
-  const monthTransactions = useMemo(() => {
-    const filtered = transactions.filter(tx => {
-      if (tx.month !== activeMonth) return false
-      const yearFromDate = tx.date ? parseInt(tx.date.substring(0, 4)) : activeYear
-      return yearFromDate === activeYear
-    })
-  
-    // ADD THESE:
-    console.log('=== DASHBOARD DEBUG ===')
-    console.log('activeMonth:', activeMonth, 'activeYear:', activeYear)
-    console.log('total transactions:', transactions.length)
-    console.log('filtered monthTransactions:', filtered.length)
-    console.log('first tx sample:', transactions[0])
-    console.log('first tx month:', transactions[0]?.month, 'type:', typeof transactions[0]?.month)
-    console.log('first tx date:', transactions[0]?.date, 'type:', typeof transactions[0]?.date)
-    console.log('=======================')
-  
-    return filtered
-  }, [transactions, activeMonth, activeYear])
+  // Debt = ALL TIME across all transactions (not filtered by month)
+  const debt = useMemo(() => calculateDebt(transactions), [transactions])
 
-  // Debt from current month only
-  const debt = useMemo(() => calculateDebt(monthTransactions), [monthTransactions])
-
-  // Category breakdown built directly from monthTransactions
-  const kevinCats = useMemo(() => {
-    const cats: Record<string, number> = {}
-    for (const tx of monthTransactions) {
-      if (tx.type !== 'Expense') continue
-      if (tx.expense_kevin != null && tx.expense_kevin > 0) {
-        cats[tx.category] = (cats[tx.category] || 0) + tx.expense_kevin
-      }
-    }
-    return cats
-  }, [monthTransactions])
-
-  const joCats = useMemo(() => {
-    const cats: Record<string, number> = {}
-    for (const tx of monthTransactions) {
-      if (tx.type !== 'Expense') continue
-      if (tx.expense_josephine != null && tx.expense_josephine > 0) {
-        cats[tx.category] = (cats[tx.category] || 0) + tx.expense_josephine
-      }
-    }
-    return cats
-  }, [monthTransactions])
-
-  const kevinTotal: number = useMemo(
-    () => Object.values(kevinCats).reduce((a: number, b: number) => a + b, 0),
-    [kevinCats]
+  // Monthly breakdown = only the selected month (for category display + projections)
+  const breakdown = useMemo(
+    () => getMonthlyBreakdown(transactions, activeMonth, activeYear),
+    [transactions, activeMonth, activeYear]
   )
 
-  const joTotal: number = useMemo(
-    () => Object.values(joCats).reduce((a: number, b: number) => a + b, 0),
-    [joCats]
-  )
+  // Active person's data for this month
+  const personCats = activePerson === 'Kevin' ? breakdown.kevin : breakdown.josephine
+  const personTotal = activePerson === 'Kevin' ? breakdown.total_kevin : breakdown.total_josephine
+  const personProj = activePerson === 'Kevin' ? breakdown.projection_kevin : breakdown.projection_josephine
 
-  const kevinProj: number = useMemo(
-    () => getMonthlyProjection(kevinCats, activeMonth, activeYear),
-    [kevinCats, activeMonth, activeYear]
-  )
+  // How much the active person physically paid out this month
+  const personPaid = useMemo(() => {
+    return transactions
+      .filter(
+        tx =>
+          tx.type === 'Expense' &&
+          tx.paid_by === activePerson &&
+          tx.month === activeMonth &&
+          new Date(tx.date).getFullYear() === activeYear
+      )
+      .reduce((s, tx) => s + tx.amount, 0)
+  }, [transactions, activePerson, activeMonth, activeYear])
 
-  const joProj: number = useMemo(
-    () => getMonthlyProjection(joCats, activeMonth, activeYear),
-    [joCats, activeMonth, activeYear]
-  )
-
-  const personPaid: number = useMemo(
-    () => monthTransactions
-      .filter(tx => tx.type === 'Expense' && tx.paid_by === activePerson)
-      .reduce((s: number, tx) => s + tx.amount, 0),
-    [monthTransactions, activePerson]
-  )
-
-  const personCats: Record<string, number> = activePerson === 'Kevin' ? kevinCats : joCats
-  const personTotal: number = activePerson === 'Kevin' ? kevinTotal : joTotal
-  const personProj: number = activePerson === 'Kevin' ? kevinProj : joProj
-
+  // Debt display — always shows the same net regardless of active person
+  // but the label adjusts to be relevant to whoever is viewing
   const netAbs = Math.abs(debt.net)
   const isSettled = netAbs < 0.01
+
+  // Debt direction label — same truth for both, just context changes
   const oweText = isSettled
     ? 'All settled up'
     : debt.net > 0
@@ -123,14 +65,16 @@ export default function Dashboard() {
     setActiveMonth(m, y)
   }
 
-  const sortedCats = (Object.entries(personCats) as [Category, number][])
-    .filter(([, v]) => v > 0)
-    .sort((a, b) => b[1] - a[1])
+  const sortedCats = Object.entries(personCats)
+    .filter(([, v]) => (v || 0) > 0)
+    .sort((a, b) => (b[1] || 0) - (a[1] || 0)) as [Category, number][]
 
   const maxCat = sortedCats[0]?.[1] || 1
 
   return (
     <div className="page">
+
+      {/* Topbar */}
       <div className="topbar">
         <span className="topbar-title">SplitTrack</span>
         <div className="month-switcher">
@@ -140,6 +84,7 @@ export default function Dashboard() {
         </div>
       </div>
 
+      {/* Person toggle */}
       <div className="person-toggle">
         <button
           className={`ptab${activePerson === 'Kevin' ? ' on' : ''}`}
@@ -155,9 +100,10 @@ export default function Dashboard() {
         </button>
       </div>
 
+      {/* Debt card — all-time running balance */}
       <div className="card" style={{ margin: '0 16px 12px' }}>
         <div className="section-label" style={{ padding: 0, marginBottom: 8 }}>
-          Current balance
+          Current balance (all time)
         </div>
         <div style={{ fontSize: 38, fontWeight: 500, letterSpacing: -1.5, color: 'var(--color-text-primary)' }}>
           €{netAbs.toFixed(2)}
@@ -170,6 +116,7 @@ export default function Dashboard() {
         </div>
       </div>
 
+      {/* Monthly stat cards */}
       <div className="stat-grid">
         <div className="stat-card">
           <div className="stat-label">{activePerson}'s spend</div>
@@ -183,6 +130,7 @@ export default function Dashboard() {
         </div>
       </div>
 
+      {/* Category breakdown */}
       <div className="section-label" style={{ marginTop: 4 }}>
         {activePerson}'s breakdown · {months[activeMonth - 1]}
       </div>
@@ -194,12 +142,12 @@ export default function Dashboard() {
         ) : (
           sortedCats.map(([cat, val]) => {
             const pct = Math.round((val / maxCat) * 100)
-            const color = CATEGORY_COLORS[cat as Category] || '#888'
+            const color = CATEGORY_COLORS[cat] || '#888'
             const isFixed = (FIXED_CATEGORIES as string[]).includes(cat)
             return (
               <div key={cat} className="cat-row">
                 <div className="cat-icon" style={{ background: color + '22' }}>
-                  {CATEGORY_ICONS[cat as Category] || '📦'}
+                  {CATEGORY_ICONS[cat] || '📦'}
                 </div>
                 <div className="cat-info">
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>

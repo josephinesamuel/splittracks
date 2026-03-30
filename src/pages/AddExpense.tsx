@@ -58,7 +58,7 @@ export default function AddExpense({ onBack }: Props) {
     setSaving(true)
     setError(null)
     try {
-      const month = new Date(form.date).getMonth() + 1
+      const month = parseInt(form.date.split('-')[1])
       const tx = {
         month,
         date: form.date,

@@ -21,8 +21,11 @@ export default async function handler(req, res) {
     });
 
     const text = await response.text();
+    if (!response.ok) {
+      return res.status(502).json({ error: `Apps Script error: ${response.status}`, result: text });
+    }
     return res.status(200).json({ success: true, result: text });
   } catch (err) {
     return res.status(500).json({ error: err.message || String(err) });
   }
-}
+} 

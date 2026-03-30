@@ -63,9 +63,8 @@ export default function BulkImport({ onBack }: Props) {
     setSaving(true)
     setError(null)
     try {
-      const month = new Date().getMonth() + 1
       const txs = selected.map(r => ({
-        month,
+        month: parseInt(r.date.split('-')[1]),
         date: r.date,
         description: r.description,
         category: r.category as Category,
