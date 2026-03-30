@@ -45,6 +45,11 @@ export function calculateDebt(transactions: Transaction[]): DebtSummary {
       if (tx.expense_josephine != null) expense_josephine += tx.expense_josephine
       if (tx.paid_by === 'Kevin') paid_kevin += tx.amount
       else if (tx.paid_by === 'Josephine') paid_josephine += tx.amount
+      else if (tx.paid_by === 'Shared') {
+        // Shared = each person paid their own share directly; no net debt between them
+        if (tx.expense_kevin != null) paid_kevin += tx.expense_kevin
+        if (tx.expense_josephine != null) paid_josephine += tx.expense_josephine
+      }
     } else if (tx.type === 'Bayar hutang') {
       if (tx.paid_by === 'Kevin') bh_kevin += tx.amount
       else if (tx.paid_by === 'Josephine') bh_josephine += tx.amount

@@ -69,17 +69,23 @@ function rowToTransaction(row: string[], rowIndex: number): Transaction | null {
 
 function parseDate(val: string): string {
   if (!val) return ''
+  const trimmed = val.trim()
   // Handle Excel serial date numbers
-  if (/^\d+$/.test(val.trim())) {
-    const serial = parseInt(val)
+  if (/^\d+$/.test(trimmed)) {
+    const serial = parseInt(trimmed)
     const date = new Date((serial - 25569) * 86400 * 1000)
     return date.toISOString().split('T')[0]
   }
+  // Handle DD/MM/YYYY format (European, as used in the sheet)
+  const ddmmyyyy = trimmed.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/)
+  if (ddmmyyyy) {
+    return `${ddmmyyyy[3]}-${ddmmyyyy[2].padStart(2, '0')}-${ddmmyyyy[1].padStart(2, '0')}`
+  }
   try {
-    const d = new Date(val)
+    const d = new Date(trimmed)
     if (!isNaN(d.getTime())) return d.toISOString().split('T')[0]
   } catch {}
-  return val
+  return trimmed
 }
 
 function transactionToRow(tx: Omit<Transaction, 'id' | 'row_index'>): string[] {

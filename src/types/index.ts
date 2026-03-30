@@ -1,5 +1,5 @@
 export type TransactionType = 'Expense' | 'Bayar hutang' | 'Income'
-export type PaidBy = 'Kevin' | 'Josephine'
+export type PaidBy = 'Kevin' | 'Josephine' | 'Shared'
 export type SplitType = 'equal' | 'percentage' | 'fixed'
 export type Person = 'Kevin' | 'Josephine'
 

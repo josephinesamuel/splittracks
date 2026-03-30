@@ -31,14 +31,14 @@ export default function AddExpense({ onBack }: Props) {
   const amt = parseFloat(form.amount) || 0
 
   const kevinAmt = () => {
-    if (!form.split) return form.paid_by === 'Kevin' ? amt : 0
+    if (!form.split) return form.paid_by === 'Kevin' ? amt : form.paid_by === 'Shared' ? amt / 2 : 0
     if (form.split_type === 'equal') return amt / 2
     if (form.split_type === 'percentage') return (form.kevin_pct / 100) * amt
     return parseFloat(form.kevin_fixed) || 0
   }
 
   const josephineAmt = () => {
-    if (!form.split) return form.paid_by === 'Josephine' ? amt : 0
+    if (!form.split) return form.paid_by === 'Josephine' ? amt : form.paid_by === 'Shared' ? amt / 2 : 0
     if (form.split_type === 'equal') return amt / 2
     if (form.split_type === 'percentage') return (form.josephine_pct / 100) * amt
     return parseFloat(form.josephine_fixed) || 0
@@ -153,9 +153,13 @@ export default function AddExpense({ onBack }: Props) {
         <div className="field">
           <div className="field-label">Paid by</div>
           <div className="paidby-row">
-            {(['Kevin', 'Josephine'] as PaidBy[]).map(p => (
+            {(['Kevin', 'Josephine', 'Shared'] as PaidBy[]).map(p => (
               <div key={p} className={`paidby-btn${form.paid_by === p ? ' selected' : ''}`}
-                onClick={() => set({ paid_by: p })}>
+                onClick={() => set(
+                  p === 'Shared'
+                    ? { paid_by: p, split: true, split_type: form.split_type === 'equal' || form.split_type === 'percentage' || form.split_type === 'fixed' ? form.split_type : 'equal' }
+                    : { paid_by: p }
+                )}>
                 {p}
               </div>
             ))}
